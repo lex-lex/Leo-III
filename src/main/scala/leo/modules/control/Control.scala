@@ -715,6 +715,9 @@ package inferenceControl {
     import leo.modules.calculus.Enumeration._
     import leo.Configuration.{PRE_PRIMSUBST_LEVEL => LEVEL, PRE_PRIMSUBST_MAX_DEPTH => MAXDEPTH}
 
+    type Instance = Term
+    type InstantiateResult = (Term, Instance)
+
     final def specialInstances(cl: AnnotatedClause)(implicit sig: Signature): Set[AnnotatedClause] = {
       if (LEVEL != NO_REPLACE) {
         leo.Out.trace("[Special Instances] Searching ...")
@@ -728,7 +731,10 @@ package inferenceControl {
           if (r == term)
             cl
           else {
-            val result = AnnotatedClause(Clause(Literal(r, lit.polarity)), InferredFrom(Enumeration, cl), cl.properties)
+            val instance = new leo.modules.output.Output {
+              def apply: String = leo.modules.output.ToTPTP.termToTPTP(r._2)(sig)
+            }
+            val result = AnnotatedClause(Clause(Literal(r._1, lit.polarity)), InferredFrom(Enumeration, Seq((cl,instance))), cl.properties)
             val simpResult = SimplificationControl.shallowSimp(result)(sig)
             simpResult
           }
@@ -738,7 +744,7 @@ package inferenceControl {
       } else Set(cl)
     }
 
-    final def instantiateTerm(t: Term, polarity: Boolean, depth: Int)(sig: Signature): Set[Term] = {
+    final def instantiateTerm(t: Term, polarity: Boolean, depth: Int)(sig: Signature): Set[InstantiateResult] = {
       import leo.datastructures.Term._
       import leo.modules.HOLSignature.{Forall, Exists, Not, Impl}
 
@@ -803,7 +809,7 @@ package inferenceControl {
       }
     }
 
-    private final def instantiateAbstractions(term: Term, ty: Type)(sig: Signature): Set[Term] = {
+    private final def instantiateAbstractions(term: Term, ty: Type)(sig: Signature): Set[InstantiateResult] = {
       assert(term.ty.isFunType)
       leo.Out.finest(s"[Special Instances]: Apply for ${ty.pretty(sig)}?")
       leo.Out.finest(s"[Special Instances]: REPLACE_O: ${isPropSet(REPLACE_O,LEVEL)}")
@@ -815,7 +821,7 @@ package inferenceControl {
         val instances = Enumeration.specialInstances(ty, LEVEL)(sig)
         if (instances.nonEmpty) {
           leo.Out.trace(s"[Special Instances]: Used (${instances.size}): ${instances.map(_.pretty(sig))}")
-          instances.map(i => Term.mkTermApp(term, i).betaNormalize)
+          instances.map(i => (Term.mkTermApp(term, i).betaNormalize, i))
         } else Set()
       } else Set()
     }
