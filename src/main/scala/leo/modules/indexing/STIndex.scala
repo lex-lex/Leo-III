@@ -84,8 +84,9 @@ class STIndex {
     }
     clauseToSubtermMap.addBinding(cl, t)
   }
-  private final def insert(cl: Clause, idx: Int, side: Literal.Side, t: Term): Unit =
-    insert0(cl, idx, side, t, Position.root)
+  private final def insert(cl: Clause, idx: Int, side: Literal.Side, t: Term): Unit = {
+    if (!isVariableModuloEta(t)) insert0(cl, idx, side, t, Position.root)
+  }
   private final def insertWithSubterms(cl: Clause, idx: Int, side: Literal.Side, t: Term): Unit = {
     insertSubterms0(cl, idx, side, t, Position.root)
   }
@@ -93,27 +94,33 @@ class STIndex {
     import leo.datastructures.Term._
 
     // dont insert subterms with loose bounds
-    if (!t.looseBounds.exists(_ <= depth)) insert0(cl, idx, side, t, pos)
+    if (!isVariableModuloEta(t)) {
 
-    t match {
-      case Symbol(_) =>
-      case Bound(_,_) =>
-      case _ :::> body =>
-        insertSubterms0(cl, idx, side, body, pos.abstrPos, depth+1)
-      case TypeLambda(body) => ???
-      case f ∙ args =>
-        insertSubterms0(cl, idx, side, f, pos.headPos, depth)
-        val argsIt = args.iterator
-        while (argsIt.hasNext) {
-          val arg = argsIt.next()
-          var argIdx = 1
-          if (arg.isLeft) {
-            val termArg = arg.left.get
-            insertSubterms0(cl, idx, side, termArg, pos.argPos(argIdx), depth)
-            argIdx += 1
+      if (!t.looseBounds.exists(_ <= depth))
+        insert0(cl, idx, side, t, pos)
+
+      t match {
+        case Symbol(_) =>
+        case Bound(_,_) =>
+        case _ :::> body =>
+          insertSubterms0(cl, idx, side, body, pos.abstrPos, depth+1)
+        case TypeLambda(body) => ???
+        case f ∙ args =>
+          insertSubterms0(cl, idx, side, f, pos.headPos, depth)
+          val argsIt = args.iterator
+          while (argsIt.hasNext) {
+            val arg = argsIt.next()
+            var argIdx = 1
+            if (arg.isLeft) {
+              val termArg = arg.left.get
+              insertSubterms0(cl, idx, side, termArg, pos.argPos(argIdx), depth)
+              argIdx += 1
+            }
           }
-        }
+      }
     }
+
+
   }
 
   final def removeClause(cl: Clause): Unit = {
