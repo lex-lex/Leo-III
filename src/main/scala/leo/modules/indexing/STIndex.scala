@@ -52,7 +52,7 @@ class STIndex {
           if (withSubterms) insertWithSubterms(cl, litIdx, Literal.leftSide, left)
           else insert(cl, litIdx, Literal.leftSide, left)
 
-          if (!maxOnly || (lit.equational && !lit.oriented)) { // only select right side if not oriented
+          if (lit.equational && (!lit.oriented || !maxOnly)) { // only select right side if not oriented
                                                                // ... or maxOnly is false
             // process right
             val right = lit.right
@@ -89,24 +89,27 @@ class STIndex {
   private final def insertWithSubterms(cl: Clause, idx: Int, side: Literal.Side, t: Term): Unit = {
     insertSubterms0(cl, idx, side, t, Position.root)
   }
-  private final def insertSubterms0(cl: Clause, idx: Int, side: Literal.Side, t: Term, pos: Position): Unit = {
+  private final def insertSubterms0(cl: Clause, idx: Int, side: Literal.Side, t: Term, pos: Position, depth: Int = 0): Unit = {
     import leo.datastructures.Term._
-    insert0(cl, idx, side, t, pos)
+
+    // dont insert subterms with loose bounds
+    if (!t.looseBounds.exists(_ <= depth)) insert0(cl, idx, side, t, pos)
+
     t match {
       case Symbol(_) =>
       case Bound(_,_) =>
       case _ :::> body =>
-        insertSubterms0(cl, idx, side, body, pos.abstrPos)
+        insertSubterms0(cl, idx, side, body, pos.abstrPos, depth+1)
       case TypeLambda(body) => ???
       case f ∙ args =>
-        insertSubterms0(cl, idx, side, f, pos.headPos)
+        insertSubterms0(cl, idx, side, f, pos.headPos, depth)
         val argsIt = args.iterator
         while (argsIt.hasNext) {
           val arg = argsIt.next()
           var argIdx = 1
           if (arg.isLeft) {
             val termArg = arg.left.get
-            insertSubterms0(cl, idx, side, termArg, pos.argPos(argIdx))
+            insertSubterms0(cl, idx, side, termArg, pos.argPos(argIdx), depth)
             argIdx += 1
           }
         }

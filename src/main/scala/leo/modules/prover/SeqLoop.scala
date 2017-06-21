@@ -145,6 +145,9 @@ object SeqLoop {
       val timeout0 = state.runStrategy.timeout
       val timeout = if (timeout0 == 0) Float.PositiveInfinity else timeout0
 
+      import leo.modules.indexing.STIndex
+      val idx = new STIndex()
+
       // Preprocessing Conjecture
       if (state.negConjecture != null) {
         // Expand conj, Initialize indexes
@@ -163,6 +166,12 @@ object SeqLoop {
         }")
         Out.trace("## Preprocess Neg.Conjecture END")
         state.addUnprocessed(result)
+
+        result.foreach {cl0 =>
+          val cl = cl0.cl
+          idx.addClause(cl, false, false, true)
+        }
+
         // Save initial pre-processed set as auxiliary set for ATP calls (if existent)
         if (state.externalProvers.nonEmpty) {
           state.addInitial(result)
@@ -187,6 +196,12 @@ object SeqLoop {
         }")
         val preprocessed = processed.filterNot(cw => Clause.trivial(cw.cl))
         state.addUnprocessed(preprocessed)
+
+        preprocessed.foreach {cl0 =>
+          val cl = cl0.cl
+          idx.addClause(cl, false, false, true)
+        }
+
         if (state.externalProvers.nonEmpty) {
           state.addInitial(preprocessed)
         }
@@ -204,6 +219,25 @@ object SeqLoop {
         }
       }
       Out.finest(s"################")
+
+      val terms = idx.iterator()
+      terms.foreach { t =>
+        println(s"Subterm ${t.pretty(sig)}:")
+        println("---------------------")
+        val occ = idx.occurrences(t)
+        while (occ.hasNext) {
+          val occ0 = occ.next()
+          val pos = occ0.bfsIterator
+          while (pos.hasNext) {
+            val pos0 = pos.next()
+            println(pos0.pretty ++  "\tin\t" ++ pos0.cl.pretty(sig))
+          }
+        }
+        println("=====================")
+      }
+
+
+      System.exit(0)
 
       /////////////////////////////////////////
       // Main proof loop
