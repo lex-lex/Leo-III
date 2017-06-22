@@ -142,6 +142,69 @@ package inferenceControl {
     * @since 22.02.16
     */
   protected[modules] object ParamodControl {
+
+    // cl was now already added to the index
+    def paramodIndexed(cl: AnnotatedClause)(state: LocalState): Set[AnnotatedClause] = {
+      import leo.modules.indexing.STIndex
+
+      // Replace my state getter
+      val fromIndex: STIndex = ???
+      val intoIndex: STIndex = ???
+      val cl0 = cl.cl
+//      myAssert(fromIndex.contains(cl0))
+//      myAssert(intoIndex.contains(cl0))
+
+      /* (1): Paramods where `cl` is paramodulated into using a processed positive literal */
+
+
+      // intoIndex contains all subterms of all indexed clauses
+      val subtermsOfCl: Iterator[(Subterm, ClausePositionSet)] = ??? //intoIndex.indexedTerms(cl0)
+      // for a fixed subterm t, we have a series (cl, litIdx, side, pos)*
+
+      while (subtermsOfCl.hasNext) {
+        val (subterm, subtermOccurrences) = subtermsOfCl.next()
+        // all in cl,
+        val maybeUnifiable: Iterator[(Term, ClausePositionSet)] = ??? //fromIndex.maybeUnifiableWith(subterm)
+
+        while (maybeUnifiable.hasNext) {
+          val (withTerm, withTermOccurrences) = maybeUnifiable.next()
+
+          if (isPattern(subterm) && isPattern(withTerm)) {
+            val fvGen = freshVarGen(cl0)
+            val liftBy = fvGen.maxVar
+            // make them variable distinct
+            val liftedWithTerm = if (liftBy > 0) withTerm.lift(liftBy) else withTerm
+            // do pattern unification
+
+            val mgu = PatternUnification.unify(???, subterm, liftedWithTerm, -1)
+            if (mgu.nonEmpty) {
+              // if unifiable
+              val (unifier,_) = mgu.head
+              //   TODO check ordering restriction of cl
+              //   iterate over withTermOccurrences ...
+
+              //   TODO ...and check ordering restrictions
+              //   then generate paramodulants
+            }
+            // if not, skip
+          } else {
+            // just check if mayUnify
+            // and generate all results
+          }
+        }
+      }
+
+
+
+      /* (2): Paramods where processed clauses are paramodulated into using `cl` as side premise */
+
+
+
+      ???
+    }
+
+
+
     final def paramodSet(cl: AnnotatedClause, withset: Set[AnnotatedClause])(implicit state: LocalState): Set[AnnotatedClause] = {
       val sos = state.runStrategy.sos
       var results: Set[AnnotatedClause] = Set()

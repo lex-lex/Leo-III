@@ -51,6 +51,8 @@ package object calculus {
       *          `f.existingVars == cl.implicitlyBound`
       *          he list of all free variables of a clause*/
     def existingVars: Seq[(Int, Type)]
+    /** Returns the largest index of an existing var. */
+    def maxVar: Int
     /** Return all already used type variable of the generator, e.g.
       * all implicitly universally quantified of the clause's context. */
     def existingTyVars: Seq[Int]
@@ -82,6 +84,7 @@ package object calculus {
       curTy
     }
 
+    final def maxVar: Int = cur
     override final def existingVars: Seq[(Int, Type)] = vars
     override final def existingTyVars: Seq[Int] = tyVars
     override final def copy: FreshVarGen = freshVarGen0(vars, tyVars, cur)
