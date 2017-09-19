@@ -31,16 +31,19 @@ trait State[T <: ClauseProxy] extends FVState[T] {
   def addNonRewriteUnit(cl: T): Unit
   def removeUnits(cls: Set[T]): Unit
 
-  def openExtCalls: Map[TptpProver[T], Set[Future[TptpResult[T]]]]
-  def removeOpenExtCalls(prover: TptpProver[T], calls: Set[Future[TptpResult[T]]]): Unit
-  def addOpenExtCall(prover: TptpProver[T], call: Future[TptpResult[T]]): Unit
-  def nextQueuedCall(prover: TptpProver[T]): Set[T]
-  def queuedCallExists(prover: TptpProver[T]): Boolean
-  def enqueueCall(prover: TptpProver[T], problem: Set[T]): Unit
+  type Problem = Set[T]
+  case class EnqueuedProblem(problem: Problem, translated: Boolean)
+  type OpenCall = Future[TptpResult[T]]
+  def openExtCalls: Map[TptpProver[T], Set[OpenCall]]
+  def removeOpenExtCalls(prover: TptpProver[T], calls: Set[OpenCall]): Unit
+  def addOpenExtCall(prover: TptpProver[T], call: OpenCall): Unit
+  def nextQueuedCall(prover: TptpProver[T]): Problem
+  def enqueuedCalls(prover: TptpProver[T]): Set[Problem]
+  def enqueueCall(prover: TptpProver[T], problem: Problem): Unit
 
-  def incTranslations : Int
-  def decTranslations : Int
-  def getTranslations : Int
+  def incTranslations: Int
+  def decTranslations: Int
+  def getTranslations: Int
 
   def lastCall: LastCallStat[T]
   def setLastCallStat(lcs: LastCallStat[T]): Unit
@@ -85,7 +88,7 @@ protected[prover] class StateImpl[T <: ClauseProxy](initSignature: Signature) ex
 
   private final val sig: Signature = initSignature
   private final val mpq: MultiPriorityQueue[T] = MultiPriorityQueue.empty
-  def queues: MultiPriorityQueue[T] = mpq
+  def queues(): MultiPriorityQueue[T] = mpq
   var clauseCache: Map[Long, WeakReference[T]] = Map.empty
   private var openExtCalls0: Map[TptpProver[T], Set[Future[TptpResult[T]]]] = Map.empty
   private var queuedTranslations : Int = 0
@@ -158,10 +161,10 @@ protected[prover] class StateImpl[T <: ClauseProxy](initSignature: Signature) ex
       throw new NoSuchElementException("nextQueueCall on empty queueExtCalls")
     }
   }
-  def queuedCallExists(prover: TptpProver[T]): Boolean = {
+  def enqueuedCalls(prover: TptpProver[T]): Set[Problem] = {
     if (queuedExtCalls0.isDefinedAt(prover)) {
-      queuedExtCalls0(prover).nonEmpty
-    } else false
+      queuedExtCalls0(prover).toSet
+    } else Set.empty
   }
   def enqueueCall(prover: TptpProver[T], problem: Set[T]): Unit = {
     if (queuedExtCalls0.isDefinedAt(prover)) {
@@ -241,10 +244,10 @@ protected[prover] class StateImpl[T <: ClauseProxy](initSignature: Signature) ex
     leo.Out.trace(s"[###] Selecting with priority $cur_prio: element $cur_weight")
     leo.Out.trace(s"[###] mpq.priorities ${mpq.priorityCount}")
     if (cur_weight > prio_weights(cur_prio)-1) {
-      leo.Out.trace(s"[###] limit exceeded (limit: ${prio_weights(cur_prio)}) (cur_weight: ${cur_weight})")
+      leo.Out.trace(s"[###] limit exceeded (limit: ${prio_weights(cur_prio)}) (cur_weight: $cur_weight)")
       cur_weight = 0
       cur_prio = (cur_prio + 1) % mpq.priorityCount
-      leo.Out.trace(s"[###] cur_prio set to ${cur_prio}")
+      leo.Out.trace(s"[###] cur_prio set to $cur_prio")
     }
     val result = mpq.dequeue(cur_prio)
     cur_weight = cur_weight+1

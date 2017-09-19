@@ -1968,7 +1968,7 @@ package  externalProverControl {
             state.removeOpenExtCalls(prover, finished)
 
             var curJobs = if (state.openExtCalls.isDefinedAt(prover)) state.openExtCalls(prover).size else 0
-            while (curJobs < Configuration.ATP_MAX_JOBS && state.queuedCallExists(prover)) {
+            while (curJobs < Configuration.ATP_MAX_JOBS && state.enqueuedCalls(prover).nonEmpty) {
               val problem = state.nextQueuedCall(prover)
               submit1(prover, problem, state)
               curJobs = curJobs +1
@@ -1988,10 +1988,17 @@ package  externalProverControl {
 
     final def sequentialSubmit(clauses: Set[AnnotatedClause], state: State[AnnotatedClause], force: Boolean = false): Unit = {
       if (state.externalProvers.nonEmpty) {
-        if (shouldRun(realProblem(clauses)(state), state) || force) {
+        val problem = realProblem(clauses)(state)
+        if (shouldRun(problem, state) || force) {
           leo.Out.debug(s"[ExtProver]: Starting jobs ...")
-          state.lastCall.calledNow(realProblem(clauses)(state))(state)
+          state.lastCall.calledNow(problem)(state)
           val openCallState = state.openExtCalls
+          // collect provers with capacity
+
+          // calculate each translation once
+
+
+
           state.externalProvers.foreach(prover =>
             if (openCallState.isDefinedAt(prover)) {
               if (openCallState(prover).size < Configuration.ATP_MAX_JOBS) {
