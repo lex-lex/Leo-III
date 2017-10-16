@@ -589,7 +589,7 @@ object OrderedParamod extends CalculusRule {
     /* unification literal between subterm of intoLiteral (in findWithin side) and right side of withLiteral. */
     Out.finest(s"withClause.maxImpBound: ${withClause.maxImplicitlyBound}")
     Out.finest(s"intoSubterm: ${intoSubterm.pretty(sig)}")
-    val unificationLit = Literal.mkNegOrdered(toFind.etaExpand, intoSubterm.etaExpand)(sig)
+    val unificationLit = Literal.mkUni(toFind.etaExpand, intoSubterm.etaExpand)
     Out.finest(s"unificationLit: ${unificationLit.pretty(sig)}")
 
     val newlits_simp = Simp.shallowSimp(withLits_without_withLiteral ++ rewrittenIntoLits)(sig)  :+ unificationLit

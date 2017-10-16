@@ -3,10 +3,11 @@ package leo.datastructures.impl
 import leo.datastructures.{Term, Literal, Signature}
 import leo.modules.HOLSignature.{LitFalse, LitTrue}
 
-protected[impl] sealed abstract class LiteralImpl extends Literal {
+protected[impl] sealed abstract class LiteralImpl(realUniLit: Boolean) extends Literal {
   @inline final private def printPol(pol: Boolean): String = if (pol) "t" else "f"
   final def pretty: String = s"[${left.pretty} ≈ ${right.pretty}]^${printPol(polarity)}"
   final def pretty(sig: Signature): String = s"[${left.pretty(sig)} ≈ ${right.pretty(sig)}]^${printPol(polarity)}"
+  final def realUni: Boolean = realUniLit
 }
 
 object LiteralImpl {
@@ -14,7 +15,7 @@ object LiteralImpl {
     * and polarity `polarity` which is unordered.
     * Note that the resulting literal is only
     * equational if `left/right != $true/$false`. */
-  final def mkLit(left: Term, right: Term, pol: Boolean, oriented: Boolean = false): Literal = {
+  final def mkLit(left: Term, right: Term, pol: Boolean, oriented: Boolean, uniLit: Boolean = false): Literal = {
     if (left == LitFalse()) {
       NonEqLiteral(right, !pol)
     } else if (right == LitFalse()) {
@@ -23,7 +24,7 @@ object LiteralImpl {
       NonEqLiteral(right, pol)
     } else if (right == LitTrue()) {
       NonEqLiteral(left, pol)
-    } else EqLiteral(left,right,pol,oriented)
+    } else EqLiteral(left,right,pol,oriented, uniLit)
   }
 
   /** Creates a new (equational) literal of the two terms t1 and t2
@@ -61,11 +62,16 @@ object LiteralImpl {
     NonEqLiteral(t, pol)
   }
 
+  final def mkUni(left: Term, right: Term): Literal = {
+    mkLit(left,right, false, false, true)
+  }
+
 
   private final case class EqLiteral(left: Term,
                                      right: Term,
                                      polarity: Boolean,
-                                     oriented: Boolean) extends LiteralImpl {
+                                     oriented: Boolean,
+                                     realUniLit: Boolean = false) extends LiteralImpl(realUniLit) {
     /** Returns true iff the literal is equational, i.e. iff `l` is an equation `s = t` and not
       * `s = $true` or `s = $false`. */
     val equational: Boolean = true
@@ -84,7 +90,7 @@ object LiteralImpl {
   }
 
   private final case class NonEqLiteral(left: Term,
-                                   polarity: Boolean) extends LiteralImpl {
+                                   polarity: Boolean) extends LiteralImpl(false) {
     /** The left side of the literal's equation.
       * Invariant: `!equational => right = $true or right = $false`.
       * Invariant: `left > right or !oriented` where `>` is a term ordering. */

@@ -36,6 +36,7 @@ trait Literal extends Pretty with Prettier {
   def equation: Boolean
   /** Returns true iff the literal is an unification constraint. */
   def uni: Boolean
+  def realUni: Boolean
   /** Returns true iff the literal is a flex-flex unification constraint,*/
   def flexflex: Boolean
   /** Returns true iff the literal has a flexible head. */
@@ -184,6 +185,8 @@ object Literal {
   /** Create new (non-equational) literal with equation
     * `left = $true` and polarity `pol`. */
   @inline final def apply(left: Term, pol: Boolean): Literal = mkLit(left, pol)
+
+  @inline final def mkUni(left: Term, right: Term): Literal = LitImpl.mkUni(left,right)
 
   // Equation selection stuff
   type Side = Boolean
