@@ -1,0 +1,84 @@
+#!/usr/bin/env python
+
+import argparse
+import os
+import subprocess
+import tempfile
+
+thf_test_1 = """
+thf(test,conjecture,$true).
+"""
+thf_test_2 = """
+thf(test,type,a:$o).
+"""
+thf_test_3 = """
+thf(test1,type,a:$o).
+thf(test2,definition,a = $true).
+"""
+thf_test_4 = """
+thf(test1,type,a:$o).
+thf(test2, axiom,a = $true).
+"""
+thf_test_5 = """
+thf(test1,type,'a_a':$o).
+thf(test2, axiom,'a_a' = $true).
+"""
+thf_test_6 = """
+thf(test, conjecture, $sum(3,2) = 5).
+"""
+
+tests = {
+  'cnf': [],
+  'fof': [],
+  'tff': [],
+  'thf': [('general', thf_test_1)]
+}
+
+def is_valid_and_executable_file(parser, arg):
+    if not os.path.isfile(arg):
+        parser.error("'%s' does not exist or is not a file." % arg)
+    elif not os.access(arg, os.X_OK):
+        parser.error("The file '%s' is not executable." % arg)
+    else:
+        return os.path.abspath(arg)
+
+valid_languages = ['cnf', 'fof', 'tff', 'thf']
+
+parser = argparse.ArgumentParser(description='Hello.')
+parser.add_argument('ATP', metavar='ATP',
+                    type=lambda x: is_valid_and_executable_file(parser, x),
+                    help='The path to the ATP system.')
+parser.add_argument('-l', '--lang', metavar='Language',
+                    choices=valid_languages,
+                    nargs='+',
+                    help='Only test specified languages. Valid languages are (without quotes): '
+                          + ', '.join(valid_languages))
+
+args = parser.parse_args()
+
+atp = args.ATP
+if args.lang == None:
+  test_languages = valid_languages
+else:
+  test_languages = args.lang
+
+for lang in test_languages:
+  cur_tests = tests[lang]
+  print str(cur_tests)
+  for (feature,test) in cur_tests:
+    print test
+    tmpfile = tempfile.NamedTemporaryFile(delete=False)
+    print str(tmpfile)
+    tmpfile.write(test)
+    tmpfile.close()
+    print str(tmpfile)
+    print str(tmpfile.name)
+    try:
+      output = subprocess.check_output([atp, tmpfile.name], stderr=subprocess.STDOUT)
+      
+#      print (str((output)))
+      break
+    except subprocess.CalledProcessError:
+      print "error"
+
+  
