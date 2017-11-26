@@ -48,6 +48,10 @@ object Configuration extends DefaultConfiguration {
   private val PARAM_CONCURRENT_TRANSLATE = "encode-threaded"
   private val PARAM_GUIDED = "guided"
 
+  private val PARAM_SINE_DEPTH = "sine-depth"
+  private val PARAM_SINE_GENERALITYTHRESHOLD = "sine-generality"
+  private val PARAM_SINE_TOLERANCE = "sine-tolerance"
+
   // Collect standard options for nice output: short-option -> (long option, argname, description)
   private val optionsMap : Map[Char, (String, String, String)] = {
     Map(
@@ -290,6 +294,10 @@ object Configuration extends DefaultConfiguration {
 
   lazy val CONCURRENT_TRANSLATE : Boolean = isSet(PARAM_CONCURRENT_TRANSLATE)
 
+  lazy val SINE_DEPTH: Int = uniqueIntFor(PARAM_SINE_DEPTH, DEFAULT_SINE_DEPTH)
+  lazy val SINE_GENERALITYTHRESHOLD: Int = uniqueIntFor(PARAM_SINE_GENERALITYTHRESHOLD, DEFAULT_SINE_GENERALITYTHRESHOLD)
+  lazy val SINE_TOLERANCE: Double = uniqueDoubleFor(PARAM_SINE_TOLERANCE, DEFAULT_SINE_TOLERANCE)
+
 
   final val CAPS: String =
     """
@@ -458,4 +466,8 @@ trait DefaultConfiguration {
   val DEFAULT_RENAMING = true
   val DEFAULT_FUNCSPEC = false
   val DEFAULT_DOMCONSTR = 0
+
+  val DEFAULT_SINE_DEPTH = 3
+  val DEFAULT_SINE_GENERALITYTHRESHOLD = 1
+  val DEFAULT_SINE_TOLERANCE: Double = 1.2
 }

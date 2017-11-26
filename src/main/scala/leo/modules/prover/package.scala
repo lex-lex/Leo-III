@@ -30,6 +30,11 @@ package object prover {
     if (state.negConjecture != null) {
       val trivialNegConjectures: Set[Term] = Set(LitTrue, Not(LitFalse))
       Out.info(s"Found a conjecture and ${effectiveInput.size} axioms. Running axiom selection ...")
+      import leo.modules.SineSelector
+      val sine = SineSelector(Configuration.SINE_TOLERANCE,
+        Configuration.SINE_GENERALITYTHRESHOLD)(effectiveInput)
+      println(sine.toString)
+      System.exit(0)
       // Do relevance filtering: Filter hopefully unnecessary axioms
       val relevantAxioms = if (effectiveInput.size <= 15 || trivialNegConjectures.contains(Clause.asTerm(state.negConjecture.cl))) effectiveInput
                             else Control.getRelevantAxioms(effectiveInput, conj)(state.signature)
