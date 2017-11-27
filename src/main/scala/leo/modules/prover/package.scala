@@ -26,21 +26,21 @@ package object prover {
     import leo.datastructures.Clause
     import leo.modules.HOLSignature.{Not, LitFalse, LitTrue}
     Out.info(s"Parsing finished. Scanning for conjecture ...")
-    val (effectiveInput,conj) = effectiveInput0(input, state)
+    val (effectiveInput,definitions, conj) = effectiveInput0(input, state)
     if (state.negConjecture != null) {
-      val trivialNegConjectures: Set[Term] = Set(LitTrue, Not(LitFalse))
+//      val trivialNegConjectures: Set[Term] = Set(LitTrue, Not(LitFalse))
       Out.info(s"Found a conjecture and ${effectiveInput.size} axioms. Running axiom selection ...")
-      import leo.modules.SineSelector
       val sine = SineSelector(Configuration.SINE_TOLERANCE,
-        Configuration.SINE_GENERALITYTHRESHOLD)(effectiveInput)
-      println(sine.toString)
-      System.exit(0)
+        Configuration.SINE_GENERALITYTHRESHOLD)(effectiveInput, definitions)
+      val relevantAxioms = sine.getRelevantAxioms(conj, Configuration.DEFAULT_SINE_DEPTH)
+
       // Do relevance filtering: Filter hopefully unnecessary axioms
-      val relevantAxioms = if (effectiveInput.size <= 15 || trivialNegConjectures.contains(Clause.asTerm(state.negConjecture.cl))) effectiveInput
-                            else Control.getRelevantAxioms(effectiveInput, conj)(state.signature)
+//      val relevantAxioms = if (effectiveInput.size <= 15 || trivialNegConjectures.contains(Clause.asTerm(state.negConjecture.cl))) effectiveInput
+//                            else Control.getRelevantAxioms(effectiveInput, conj)(state.signature)
       state.setFilteredAxioms(effectiveInput.diff(relevantAxioms))
       Out.info(s"Axiom selection finished. Selected ${relevantAxioms.size} axioms " +
         s"(removed ${state.filteredAxioms.size} axioms).")
+      println(s"conventional selection: ${relevantAxioms.map(_.name)}")
       relevantAxioms.map(ax => processInput(ax, state))
     } else {
       Out.info(s"${effectiveInput.size} axioms and no conjecture found.")
@@ -51,10 +51,13 @@ package object prover {
   /** Insert types, definitions and the conjecture to the signature resp. state. The rest
     * (axioms etc.) is left unchanged for relevance filtering. Throws an error if multiple
     * conjectures are present or unknown role occurs. */
-  final private def effectiveInput0(input: Seq[tptp.Commons.AnnotatedFormula], state: LocalGeneralState): (Seq[tptp.Commons.AnnotatedFormula], tptp.Commons.AnnotatedFormula) = {
+  final private def effectiveInput0(input: Seq[tptp.Commons.AnnotatedFormula],
+                                    state: LocalGeneralState):
+  (Seq[tptp.Commons.AnnotatedFormula], Seq[tptp.Commons.AnnotatedFormula], tptp.Commons.AnnotatedFormula) = {
     import leo.datastructures.{Role_Definition, Role_Type, Role_Conjecture, Role_NegConjecture, Role_Unknown}
     import leo.datastructures.ClauseAnnotation._
-    var result: Seq[tptp.Commons.AnnotatedFormula] = Vector()
+    var axioms: Seq[tptp.Commons.AnnotatedFormula] = Vector.empty
+    var definitions: Seq[tptp.Commons.AnnotatedFormula] = Vector.empty
     var conj: tptp.Commons.AnnotatedFormula = null
     val inputIt = input.iterator
     while (inputIt.hasNext) {
@@ -63,6 +66,7 @@ package object prover {
         case Role_Type.pretty => Input.processFormula(formula)(state.signature)
         case Role_Definition.pretty => Control.relevanceFilterAdd(formula)(state.signature)
           Input.processFormula(formula)(state.signature)
+          definitions = formula +: definitions
         case Role_Conjecture.pretty =>
           if (state.negConjecture == null) {
             if (Configuration.CONSISTENCY_CHECK) {
@@ -96,10 +100,10 @@ package object prover {
           throw new SZSException(SZS_InputError, s"Formula ${formula.name} has role 'unknown' which is regarded an error.")
         case _ =>
           Control.relevanceFilterAdd(formula)(state.signature)
-          result = formula +: result
+          axioms = formula +: axioms
       }
     }
-    (result,conj)
+    (axioms,definitions, conj)
   }
 
   final private def processInput(input: tptp.Commons.AnnotatedFormula, state: LocalGeneralState): AnnotatedClause = {
