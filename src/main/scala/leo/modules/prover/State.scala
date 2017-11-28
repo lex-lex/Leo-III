@@ -2,6 +2,7 @@ package leo.modules.prover
 
 import leo.datastructures._
 import leo.modules._
+import leo.modules.encoding.EncodingResult
 import leo.modules.external.{Future, TptpProver, TptpResult}
 import leo.modules.prover.State.LastCallStat
 
@@ -84,9 +85,10 @@ trait State[T <: ClauseProxy] extends FVState[T] {
   def openExtCalls: Map[TptpProver[T], Set[Future[TptpResult[T]]]]
   def removeOpenExtCalls(prover: TptpProver[T], calls: Set[Future[TptpResult[T]]]): Unit
   def addOpenExtCall(prover: TptpProver[T], call: Future[TptpResult[T]]): Unit
-  def nextQueuedCall(prover: TptpProver[T]): Set[T]
+  def nextQueuedCall(prover: TptpProver[T]): Either[Set[T], (Set[T], EncodingResult)]
   def queuedCallExists(prover: TptpProver[T]): Boolean
   def enqueueCall(prover: TptpProver[T], problem: Set[T]): Unit
+  def enqueueCall(prover: TptpProver[T], problem: Set[T], encodedProblem: EncodingResult): Unit
 
   def lastCall: LastCallStat[T]
   def setLastCallStat(lcs: LastCallStat[T]): Unit
@@ -152,7 +154,7 @@ protected[prover] class StateImpl[T <: ClauseProxy](final val sig: Signature) ex
   private var openExtCalls0: Map[TptpProver[T], Set[Future[TptpResult[T]]]] = Map.empty
   private var queuedTranslations : Int = 0
   private var extCallStat: LastCallStat[T] = _
-  private var queuedExtCalls0: Map[TptpProver[T], Vector[Set[T]]] = Map.empty
+  private var queuedExtCalls0: Map[TptpProver[T], Vector[Either[Set[T], (Set[T], EncodingResult)]]] = Map.empty
 
   /////////// Methods ///////////////
   /////////////////////
@@ -319,7 +321,7 @@ protected[prover] class StateImpl[T <: ClauseProxy](final val sig: Signature) ex
 
   var lastPick: Pick = HEAD
 
-  def nextQueuedCall(prover: TptpProver[T]): Set[T] = {
+  def nextQueuedCall(prover: TptpProver[T]): Either[Set[T], (Set[T],EncodingResult)] = {
     if (queuedExtCalls0.isDefinedAt(prover)) {
       val list = queuedExtCalls0(prover)
       if (list.isEmpty) throw new NoSuchElementException("nextQueueCall on empty queueExtCalls entry")
@@ -346,10 +348,19 @@ protected[prover] class StateImpl[T <: ClauseProxy](final val sig: Signature) ex
   def enqueueCall(prover: TptpProver[T], problem: Set[T]): Unit = {
     if (queuedExtCalls0.isDefinedAt(prover)) {
       val list = queuedExtCalls0(prover)
-      val list0 = list :+ problem
+      val list0 = list :+ Left(problem)
       queuedExtCalls0 = queuedExtCalls0 + (prover -> list0)
     } else {
-      queuedExtCalls0 = queuedExtCalls0 + (prover -> Vector(problem))
+      queuedExtCalls0 = queuedExtCalls0 + (prover -> Vector(Left(problem)))
+    }
+  }
+  def enqueueCall(prover: TptpProver[T], problem: Set[T], encodedProblem: EncodingResult): Unit = {
+    if (queuedExtCalls0.isDefinedAt(prover)) {
+      val list = queuedExtCalls0(prover)
+      val list0 = list :+ Right((problem, encodedProblem))
+      queuedExtCalls0 = queuedExtCalls0 + (prover -> list0)
+    } else {
+      queuedExtCalls0 = queuedExtCalls0 + (prover -> Vector(Right((problem, encodedProblem))))
     }
   }
   

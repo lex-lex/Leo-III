@@ -2769,8 +2769,20 @@ package  externalProverControl {
             var curJobs = if (state.openExtCalls.isDefinedAt(prover)) state.openExtCalls(prover).size else 0
             while (curJobs < Configuration.ATP_MAX_JOBS && state.queuedCallExists(prover)) {
               val problem = state.nextQueuedCall(prover)
-              submit1(prover, problem, state)
+              val bestEncoding = bestEncodingForProver(prover)
+              val (lang, _) = bestEncoding
+              if (problem.isLeft) {
+                // encode
+                val encodedProblem = calculateEncoding(bestEncoding, problem.left.get)(state)
+                submit1New(prover, problem.left.get, encodedProblem, lang, state)
+              } else {
+                // already encoded
+                val (referenceProblem, encodedProblem) = problem.right.get
+                submit1New(prover, referenceProblem, encodedProblem, lang, state)
+              }
               curJobs = curJobs +1
+
+
             }
 
             if (state.openExtCalls.isEmpty) openCalls = openCalls - state
@@ -2784,25 +2796,103 @@ package  externalProverControl {
     final def checkExternalResults(): Map[S, Seq[TptpResult[AnnotatedClause]]] =
       openCalls.map(state => (state, checkExternalResults(state))).toMap
 
+    @inline
+    private[this] final def atpAvailable(state: State[AnnotatedClause])(prover: TptpProver[AnnotatedClause]): Boolean = {
+      val maybeATPJobs = state.openExtCalls.get(prover)
+      if (maybeATPJobs.isDefined) {
+        maybeATPJobs.get.size < Configuration.ATP_MAX_JOBS
+      } else true
+    }
+
+    import leo.modules.encoding.{Encoding, EncodingType, EncodingResult, MonoNative, PolyNative, EP_None}
+    type TranslatedProblemVariants = Map[EncodingType, EncodingResult]
 
     final def sequentialSubmit(clauses: Set[AnnotatedClause], state: State[AnnotatedClause], force: Boolean = false): Unit = {
+      import leo.modules.external.Capabilities._
+      val sig: Signature = state.signature
+      val problem = realProblem(clauses)(state)
       if (state.externalProvers.nonEmpty) {
-        if (shouldRun(realProblem(clauses)(state), state) || force) {
+        if (shouldRun(problem, state) || force) {
           leo.Out.debug(s"[ExtProver]: Starting jobs ...")
-          state.lastCall.calledNow(realProblem(clauses)(state))(state)
+          state.lastCall.calledNow(problem)(state)
+          var availableVariants: Set[EncodingType] = Set.empty
+          var problemVariants: TranslatedProblemVariants = Map.empty
           val openCallState = state.openExtCalls
-          state.externalProvers.foreach(prover =>
-            if (openCallState.isDefinedAt(prover)) {
-              if (openCallState(prover).size < Configuration.ATP_MAX_JOBS) {
-                submit1(prover, clauses, state)
-              }  else {
-                state.enqueueCall(prover, clauses)
+          state.externalProvers.foreach { prover =>
+            val bestEncoding = bestEncodingForProver(prover)
+              if (atpAvailable(state)(prover)) {
+              availableVariants = availableVariants + bestEncoding
+            }
+          }
+          leo.Out.finest(s"best encodings: ${availableVariants.toString()}")
+          // calculate every required variant in availableVariants now
+          // every other variant (not yet available) is postponed
+          availableVariants.foreach { variant =>
+            if (!problemVariants.isDefinedAt(variant)) {
+              val encoding = calculateEncoding(variant, problem)(state)
+              problemVariants = problemVariants + (variant -> encoding)
+            }
+          }
+          // start/enqueue jobs
+          state.externalProvers.foreach{ prover =>
+            val bestEncoding = bestEncodingForProver(prover)
+            leo.Out.finest(s"Best encoding for ${prover.name}: ${bestEncoding.toString}")
+            if (atpAvailable(state)(prover)) {
+              // already translated (if no error), use the translated variant
+              if (problemVariants.isDefinedAt(bestEncoding)) {
+                val (lang, _) = bestEncoding
+                submit1New(prover, clauses, problemVariants(bestEncoding), lang, state)
               }
             } else {
-              submit1(prover, clauses, state)
+              if (availableVariants.contains(bestEncoding)) {
+                // already translated. enqueue the translated variant
+                val encodingResult = problemVariants(bestEncoding)
+                state.enqueueCall(prover, clauses, encodingResult)
+              } else {
+                // not yet translated. enqueue untranslated variant
+                state.enqueueCall(prover, clauses)
+              }
             }
-          )
+          }
         }
+      }
+    }
+
+    private final def calculateEncoding(encodingType: EncodingType, problem: Set[AnnotatedClause])(state: S): EncodingResult = {
+      import leo.modules.external.Capabilities._
+      val sig: Signature = state.signature
+      val (lang, typeEncoding) = encodingType
+      if (isFirstOrder(lang)) {
+        val preparedProblem = prepareProblem(problem, lang)(sig)
+        val lambdaElim = Configuration.LAMBDA_ELIM_STRATEGY
+        Encoding(preparedProblem.map(_.cl), EP_None, lambdaElim,  typeEncoding)(sig)
+      } else {
+        val preparedProblem = prepareProblem(problem, THF)(sig)
+        typeEncoding match {
+          case `MonoNative` =>
+              if (state.isPolymorphic) {
+                // Monomorphize
+                Encoding.mono(preparedProblem.map(_.cl))(sig)
+              } else {
+                // Problem is not polymorphic. Just submit.
+                (preparedProblem.map(_.cl), Set[Clause](), sig)
+              }
+          case `PolyNative` =>
+              (preparedProblem.map(_.cl), Set[Clause](), sig)
+          case _ => throw new UnsupportedOperationException
+        }
+      }
+    }
+
+    private def submit1New(prover: TptpProver[AnnotatedClause],
+                           problem: Set[AnnotatedClause],
+                           encodedProblem: EncodingResult,
+                           language: Language, state: S): Unit = {
+      val futureResult = callProverNew(prover,problem, encodedProblem, language, Configuration.ATP_TIMEOUT(prover.name))
+      if (futureResult != null) {
+        state.addOpenExtCall(prover, futureResult)
+        openCalls = openCalls + state
+        leo.Out.debug(s"[ExtProver]: ${prover.name} started.")
       }
     }
 
@@ -2870,8 +2960,8 @@ package  externalProverControl {
       if (futureResult != null) {
         state.addOpenExtCall(prover, futureResult)
         openCalls = openCalls + state
+        leo.Out.debug(s"[ExtProver]: ${prover.name} started.")
       }
-      leo.Out.debug(s"[ExtProver]: ${prover.name} started.")
     }
 
     @inline private def realProblem(problem: Set[AnnotatedClause])(state: S): Set[AnnotatedClause] = {
@@ -2914,6 +3004,20 @@ package  externalProverControl {
         Out.warn(s"$prefix Prover ${prover.name} input syntax not supported.")
         null
       }
+    }
+
+    final def callProverNew(prover: TptpProver[AnnotatedClause],
+                            referenceProblem: Set[AnnotatedClause],
+                            encodedProblem: EncodingResult,
+                            targetLanguage: Language,
+                            timeout : Int): Future[TptpResult[AnnotatedClause]] = {
+      import leo.modules.encoding._
+      import leo.modules.external.Capabilities._
+      // Check what the provers speaks, translate only to first-order if necessary
+      val extraArgs0 = Configuration.ATP_ARGS(prover.name)
+      val extraArgs = if (extraArgs0 == "") Seq.empty else extraArgs0.split(" ").toSeq
+      val (problem, auxDefs, translatedSig) = encodedProblem
+      callProver0(prover, referenceProblem, problem union auxDefs, translatedSig, targetLanguage, timeout, extraArgs)
     }
 
     private def callProver0(prover: TptpProver[AnnotatedClause],

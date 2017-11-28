@@ -50,14 +50,27 @@ object Main {
         // Functionality that need to parse the input file, do it now
         val problem0 = Input.parseProblemFile(Configuration.PROBLEMFILE)
         // If it is a logic embedding, call the embedding tool
+        import leo.Configuration.{PARAM_MODALSEMANTICS => ModalParam}
         val maybeLogicSpecification = problem0.find(_.role == "logic")
-        val problem = if (maybeLogicSpecification.isDefined) {
+        val maybeModalSemanticsExplicitlySet = Configuration.isSet(ModalParam)
+        val problem = if (maybeLogicSpecification.isDefined || maybeModalSemanticsExplicitlySet) {
           import transformation.{Wrappers => ModalProcessing}
-          val spec = maybeLogicSpecification.get
-          assert(spec.function_symbols.contains("$modal"), "Non-classical logics other than modal logic not supported yet.")
           Out.info("Input problem is modal. Running modal-to-HOL transformation ...")
-          val result = ModalProcessing.convertModalToString(java.nio.file.Paths.get(Configuration.PROBLEMFILE))
-          Input.parseProblem(result)
+          if (maybeLogicSpecification.isDefined) {
+            val spec = maybeLogicSpecification.get
+            assert(spec.function_symbols.contains("$modal"), "Non-classical logics other than modal logic not supported yet.")
+            if (maybeModalSemanticsExplicitlySet) {
+              leo.Out.warn(s"Explicitly overriding modal semantics already contained in the problem.")
+              ???
+            } else {
+              val result = ModalProcessing.convertModalToString(java.nio.file.Paths.get(Configuration.PROBLEMFILE))
+              Input.parseProblem(result)
+            }
+          } else {
+            val result = ModalProcessing.convertModalToString(java.nio.file.Paths.get(Configuration.PROBLEMFILE),
+              null, null, null, "")
+            Input.parseProblem(result)
+          }
         } else {
           problem0
         }

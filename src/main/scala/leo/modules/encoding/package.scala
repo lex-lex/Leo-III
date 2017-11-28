@@ -1,6 +1,7 @@
 package leo.modules
 
-import leo.datastructures.{Signature, Clause}
+import leo.datastructures.{Clause, Signature}
+import leo.modules.external.Capabilities.Language
 
 /**
   * This package contains all algorithms related to first-order encoding
@@ -23,6 +24,9 @@ package object encoding {
   /** Set of clauses that represent artificially introduced symbols by a translation process. */
   type AuxiliaryFormulae = Problem
   type EncodingSignature = Signature
+
+  type EncodingType = (Language, TypeEncoding) // (First-order?, Type-encoding)
+  type EncodingResult = (EncodedProblem, AuxiliaryFormulae, EncodingSignature)
 
   /** Representation of optional processing steps (on the HOL problem)
     * before an actual first-order encoding. Currently, only "no processing" (EP_None)

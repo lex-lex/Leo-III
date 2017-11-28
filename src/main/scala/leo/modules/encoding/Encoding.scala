@@ -11,8 +11,6 @@ import leo.datastructures.Signature
   * @since March 2017
   */
 object Encoding {
-  type EncodingResult = (EncodedProblem, AuxiliaryFormulae, EncodingSignature)
-
   /** Encodes a polymorphic HOL/FOL problem into a corresponding
     * monomorphic HOL/FOL problem using heuristic monomorphization.
     *

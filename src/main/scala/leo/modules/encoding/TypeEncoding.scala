@@ -31,8 +31,6 @@ case object PolyNative extends TypeEncoding {
 }
 
 trait TypeEncoder {
-  type EncodingResult = (EncodedProblem, AuxiliaryFormulae, EncodingSignature)
-
   def apply(problem: Problem, auxiliaryFormulae: AuxiliaryFormulae)
            (implicit sig: Signature): EncodingResult
 }

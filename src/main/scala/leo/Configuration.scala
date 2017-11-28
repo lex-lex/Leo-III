@@ -47,6 +47,7 @@ object Configuration extends DefaultConfiguration {
   private val PARAM_PAR_SCHED = "parSched"
   private val PARAM_CONCURRENT_TRANSLATE = "encode-threaded"
   private val PARAM_GUIDED = "guided"
+  final val PARAM_MODALSEMANTICS = "assume-modal-semantics"
 
   // Collect standard options for nice output: short-option -> (long option, argname, description)
   private val optionsMap : Map[Char, (String, String, String)] = {
