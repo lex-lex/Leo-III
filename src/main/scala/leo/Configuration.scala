@@ -469,5 +469,5 @@ trait DefaultConfiguration {
 
   val DEFAULT_SINE_DEPTH = 3
   val DEFAULT_SINE_GENERALITYTHRESHOLD = 0
-  val DEFAULT_SINE_TOLERANCE: Double = 1.2
+  val DEFAULT_SINE_TOLERANCE: Double = 1.3
 }

@@ -30,17 +30,25 @@ package object prover {
     if (state.negConjecture != null) {
 //      val trivialNegConjectures: Set[Term] = Set(LitTrue, Not(LitFalse))
       Out.info(s"Found a conjecture and ${effectiveInput.size} axioms. Running axiom selection ...")
-      val sine = SineSelector(Configuration.SINE_TOLERANCE,
-        Configuration.SINE_GENERALITYTHRESHOLD)(effectiveInput, definitions)
-      val relevantAxioms = sine.getRelevantAxioms(conj, Configuration.DEFAULT_SINE_DEPTH)
-
       // Do relevance filtering: Filter hopefully unnecessary axioms
+      val relevantAxioms =
+        if (effectiveInput.size <= 15 || conj.function_symbols.isEmpty) effectiveInput
+        else {
+          // only filter if more than 15 axioms are present
+          val depth0 = Configuration.DEFAULT_SINE_DEPTH
+          val depth = if (effectiveInput.size < 25)
+            depth0+5
+          else if (effectiveInput.size < 50) depth0+4
+          else depth0+3
+          val sine = SineSelector(Configuration.SINE_TOLERANCE,
+            Configuration.SINE_GENERALITYTHRESHOLD)(effectiveInput, definitions)
+          sine.getRelevantAxioms(conj, depth)
+        }
 //      val relevantAxioms = if (effectiveInput.size <= 15 || trivialNegConjectures.contains(Clause.asTerm(state.negConjecture.cl))) effectiveInput
 //                            else Control.getRelevantAxioms(effectiveInput, conj)(state.signature)
       state.setFilteredAxioms(effectiveInput.diff(relevantAxioms))
       Out.info(s"Axiom selection finished. Selected ${relevantAxioms.size} axioms " +
         s"(removed ${state.filteredAxioms.size} axioms).")
-      println(s"conventional selection: ${relevantAxioms.map(_.name)}")
       relevantAxioms.map(ax => processInput(ax, state))
     } else {
       Out.info(s"${effectiveInput.size} axioms and no conjecture found.")
