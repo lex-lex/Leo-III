@@ -100,6 +100,7 @@ object SeqLoop {
       // Typechecking: Throws and exception if not well-typed
       typeCheck(remainingInput, state)
       Out.info(s"Type checking passed. Searching for refutation ...")
+      Control.scheduleExternalResultsCheck(state, startTime, startTimeWOParsing)
       run(remainingInput, startTime)(state)
       printResult(state, startTime, startTimeWOParsing)
     } catch {
@@ -211,6 +212,7 @@ object SeqLoop {
         else state.setSZSStatus(SZS_GaveUp)
       } else {
         // No cancel, do reasoning step
+        /*
         val extRes = Control.checkExternalResults(state)
         if (extRes.nonEmpty) {
           val extRes0 = extRes.filter(endgameResult)
@@ -226,7 +228,8 @@ object SeqLoop {
               endplay(null, state)
             }
           }
-        } else {
+        } else */
+        {
           var cur = state.nextUnprocessed
           // cur is the current AnnotatedClause
           Out.debug(s"[SeqLoop] Taken: ${cur.pretty(sig)}")

@@ -12,7 +12,7 @@ import leo.modules.parsers.{CLParameterParser, Input}
   * @since 7/8/14
  */
 object Main {
-  private[this] var hook: scala.sys.ShutdownHookThread = _
+  var hook: scala.sys.ShutdownHookThread = _
 
   def main(args : Array[String]){
     try {

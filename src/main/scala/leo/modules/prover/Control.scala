@@ -84,6 +84,7 @@ object Control {
   // External prover call
   @inline final def registerExtProver(provers: Seq[(String, String)])(implicit state: State[AnnotatedClause]): Unit =  externalProverControl.ExtProverControl.registerExtProver(provers)(state)
   @inline final def checkExternalResults(state: State[AnnotatedClause]): Seq[leo.modules.external.TptpResult[AnnotatedClause]] =  externalProverControl.ExtProverControl.checkExternalResults(state)
+  @inline final def scheduleExternalResultsCheck(state: State[AnnotatedClause], startTime: Long, startTimeWOParsing: Long): Unit = externalProverControl.ExtProverControl.scheduleExternalResultsCheck(state, startTime, startTimeWOParsing)
   @inline final def submit(clauses: Set[AnnotatedClause], state: State[AnnotatedClause], force: Boolean = false): Unit = externalProverControl.ExtProverControl.submit(clauses, state, force)
   @inline final def despairSubmit(startTime: Long, timeout: Float)(implicit state: State[AnnotatedClause]): Unit = externalProverControl.ExtProverControl.despairSubmit(startTime, timeout)(state)
   @inline final def killExternals(): Unit = externalProverControl.ExtProverControl.killExternals()
@@ -2761,6 +2762,81 @@ package  externalProverControl {
         else Out.info(s"Helpful answer from external systems within timeout. Terminating ...")
       }
     }
+
+    final def scheduleExternalResultsCheck(state: State[AnnotatedClause],
+                                           startTime: Long,
+                                           startTimeWOParsing: Long): Unit = {
+      import java.util.{Timer, TimerTask}
+      import leo.modules.prover._
+      import leo.modules.prover.SeqLoop.printResult
+      if (state.externalProvers.isEmpty) return
+      else {
+        leo.Out.debug(s"[ExtProver]: Starting external ATP result check daemon ....")
+      }
+
+      val checkTask: TimerTask = new TimerTask {
+        override def run(): Unit = {
+//          println("[ExtProver]: Check task scheduled.")
+          var results: Seq[TptpResult[AnnotatedClause]] = Vector.empty
+
+          val proversIt = synchronized(state.openExtCalls.iterator)
+          while (proversIt.hasNext) {
+            val (prover, openCalls0) = proversIt.next()
+            var finished: Set[Future[TptpResult[AnnotatedClause]]] = Set.empty
+            val openCallsIt = openCalls0.iterator
+            while (openCallsIt.hasNext) {
+              val openCall = openCallsIt.next()
+              if (openCall.isCompleted) {
+                leo.Out.debug(s"[ExtProver]: Job finished (${prover.name}).")
+                finished = finished + openCall
+                val result = openCall.value.get
+                val resultSZS = result.szsStatus
+                leo.Out.debug(s"[ExtProver]: Result ${resultSZS.pretty}")
+                if (resultSZS == SZS_Error) leo.Out.warn(result.error.mkString("\n"))
+                if (helpfulAnswer(result)) {
+                  results = results :+ result
+                }
+              }
+            }
+            synchronized {
+              state.removeOpenExtCalls(prover, finished)
+
+              var curJobs = if (state.openExtCalls.isDefinedAt(prover)) state.openExtCalls(prover).size else 0
+              while (curJobs < Configuration.ATP_MAX_JOBS && state.queuedCallExists(prover)) {
+                val problem = state.nextQueuedCall(prover)
+                submit1(prover, problem, state)
+                curJobs = curJobs +1
+              }
+
+              if (state.openExtCalls.isEmpty) openCalls = openCalls - state
+            }
+          }
+
+          if (results.nonEmpty) {
+            val extRes0 = results.filter(endgameResult)
+            if (extRes0.nonEmpty) {
+              val extResAnswer = extRes0.head
+              if (extResAnswer.szsStatus == SZS_Unsatisfiable) {
+                val emptyClause = AnnotatedClause(Clause.empty,
+                  extCallInference(extResAnswer.prover.name,
+                    extResAnswer.problem))
+                endplay(emptyClause, state)
+              } else {
+                endplay(null, state)
+              }
+              printResult(state, startTime, startTimeWOParsing)
+              Configuration.cleanup()
+              leo.Main.hook.remove()
+              sys.exit(0)
+            }
+          }
+//          println("[ExtProver]: Check task done.")
+        }
+      }
+      val timer: Timer = new Timer("extCheckTimer")
+      timer.scheduleAtFixedRate(checkTask, 30, 1000)
+    }
+
 
     final def checkExternalResults(state: State[AnnotatedClause]): Seq[TptpResult[AnnotatedClause]] = {
       if (state.externalProvers.isEmpty) Seq.empty
