@@ -2919,6 +2919,7 @@ package  externalProverControl {
         val preparedProblem = prepareProblem(problem, TFF)(sig)
         try {
           val lambdaElim = Configuration.LAMBDA_ELIM_STRATEGY
+          val problemMap: Map[Long, Clause] = preparedProblem.map(p => (p.id, p.cl)).toMap
           val (translatedProblem, auxDefs, translatedSig) =
             if (supportsFeature(proverCaps, TFF)(Polymorphism))
               Encoding(preparedProblem.map(_.cl), EP_None, lambdaElim,  PolyNative)(sig)
