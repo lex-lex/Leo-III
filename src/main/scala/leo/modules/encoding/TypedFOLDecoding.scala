@@ -245,8 +245,11 @@ object TypedFOLDecoding {
     } else {
       val ty = name.takeWhile(_ != '_')
       val rest = name.dropWhile(_ != '_')
-      // nothing special ?? Di -> $i
-      (THFFunction(ty, Seq.empty), rest)
+      val ty0 = ty.replaceAll("Di", "\\$i")
+      val ty1 = ty0.replaceAll("Do", "\\$o")
+      // nothing special except for replacing D (escaped dollars) by $
+      // TODO: Only i and o?
+      (THFFunction(ty1, Seq.empty), rest)
     }
   }
 }
