@@ -173,11 +173,23 @@ object TypedFOLDecoding {
         if (name.startsWith(escapeChar.toString)) {
           val name0 = name.tail
           if (name0.startsWith(safeName(TypedFOLEncodingSignature.funTy_name))) {
-
+//            // TODO
+//            val decodedTypes = args.map(decodeTFFType0)
+//            THFFunction(name, decodedTypes)
+            THFBinType(decodeCanonicalTyName(name0))
+          } else if (name0 == safeName(TypedFOLEncodingSignature.boolTy_name)) {
+            // replace proxy bool with real Boolean type
+            THFFunction("$o", Seq.empty)
+          } else {
+            // it just started with x, but no recognized keyword appeared, just
+            // treat as regular type
+            val decodedTypes = args.map(decodeTFFType0)
+            THFFunction(name, decodedTypes)
           }
+        } else {
+          val decodedTypes = args.map(decodeTFFType0)
+          THFFunction(name, decodedTypes)
         }
-        val decodedTypes = args.map(decodeTFFType0)
-        THFFunction(name, decodedTypes)
       case TFFTopFunType(types) =>
         val decodedTypes = types.map(decodeTFFType0)
         THFBinType(THFFunType(decodedTypes))
@@ -187,18 +199,54 @@ object TypedFOLDecoding {
       case _ => assert(false); null
     }
   }
+
+  import leo.datastructures.tptp.thf.{-> => THFFunType}
   // first 'x' was already stripped
   private val funName: String = escapeChar + TypedFOLEncodingSignature.funTy_name
-  private def decodeCanonicalTyName(name: String): Any = {
-    if (name.startsWith(funName)) {
-      val tyName = name.drop(funName.size)
-      assert(tyName.head == '_')
-      val tyName0 = tyName.tail
-      val dom = tyName0.takeWhile(_ != '_')  // TODO: depth-first search on xfun
-      val tyName1 = tyName0.dropWhile(_ != '_').tail
-      ???
+  private def decodeCanonicalTyName(name: String): THFFunType  = {
+    assert(name.startsWith(funName))
+    val name0 = name.drop(funName.length)
+    assert(name0.head == '_')
+    val name1 = name0.tail //drop underscore
+    // name1 is now something of the form ty1_ty2 where ty1 and ty2 are encodedTypes
+    val (domTy, remainingInput) = decodeCanonicalTyName0(name1) // recursively translate
+    assert(remainingInput.head == '_')
+    val remainingInput0 = remainingInput.tail
+    // translate recursively rest
+    val (codomTy,rest) = decodeCanonicalTyName0(remainingInput0)
+    assert(rest.isEmpty)
+    THFFunType(Seq(domTy, codomTy))
+  }
+  // take until next underscore und translate recursively if it begins with funTy
+  private def decodeCanonicalTyName0(name: String): (THFLogicFormula, String) = {
+    import leo.datastructures.tptp.thf.{Function => THFFunction,
+      BinType => THFBinType, -> => THFFunType}
+    if (name.startsWith(escapeChar.toString)) {
+      if (name.startsWith(safeName(TypedFOLEncodingSignature.funTy_name))) {
+        // recurse
+        val name0 = name.drop(funName.length)
+        assert(name0.head == '_')
+        val name1 = name0.tail //drop underscore
+        val (domTy, remainingInput) = decodeCanonicalTyName0(name1) // recursively translate
+        assert(remainingInput.head == '_')
+        val remainingInput0 = remainingInput.tail
+        // translate recursively rest
+        val (codomTy,rest) = decodeCanonicalTyName0(remainingInput0)
+        (THFBinType(THFFunType(Seq(domTy, codomTy))), rest)
+      } else {
+        val ty = name.takeWhile(_ != '_')
+        val ty0 = if (ty == safeName(TypedFOLEncodingSignature.boolTy_name)) {
+          "$o"
+        } else ty
+        val rest = name.dropWhile(_ != '_')
+        // nothing special ?? Di -> $i
+        (THFFunction(ty0, Seq.empty), rest)
+      }
     } else {
-      ???
+      val ty = name.takeWhile(_ != '_')
+      val rest = name.dropWhile(_ != '_')
+      // nothing special ?? Di -> $i
+      (THFFunction(ty, Seq.empty), rest)
     }
   }
 }

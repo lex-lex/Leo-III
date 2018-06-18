@@ -233,6 +233,7 @@ object SeqLoop {
                   import leo.modules.encoding.TypedFOLDecoding
                   val decoded = TypedFOLDecoding(line.asInstanceOf[leo.datastructures.tptp.Commons.TFFAnnotated])
                   println(decoded.toString)
+                  println()
                 }
 
               }
