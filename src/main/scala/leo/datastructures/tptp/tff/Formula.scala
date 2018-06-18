@@ -37,7 +37,8 @@ case class Binary(left: LogicFormula, connective: BinaryConnective, right: Logic
   override val function_symbols: Set[String] = left.function_symbols union right.function_symbols
 }
 case class Quantified(quantifier: Quantifier, varList: Seq[(Variable,Option[AtomicType])], matrix: LogicFormula) extends LogicFormula {
-  override def toString = quantifier.toString + " [" + varList.mkString(",") + "] : (" + matrix.toString + ")"
+  override def toString: String = s"${quantifier.toString} [${varList.map(v => if (v._2.isEmpty) v._1 else v._1 + ": " + v._2.get).mkString(",")}] : (${matrix.toString})"
+//  override def toString = quantifier.toString + " [" + varList.mkString(",") + "] : (" + matrix.toString + ")"
 
   override val function_symbols: Set[String] = {
     val vars = varList.map(_._1).toSet

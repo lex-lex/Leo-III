@@ -221,6 +221,22 @@ object SeqLoop {
               val emptyClause = AnnotatedClause(Clause.empty,
                 extCallInference(extResAnswer.prover.name,
                   extResAnswer.problem))
+              if (extResAnswer.szsOutput.isDefined) {
+                val extProof = extResAnswer.szsOutput.get
+                val parseResult = leo.modules.parsers.Input.parseProblem(extProof)
+                parseResult.foreach { line =>
+                  val name = line.name
+                  val role = line.role
+                  val formula = line.f
+                  val anno = line.annotations
+                  println(s"name: ${name}; role: ${role}; formula: ${formula}; anno: ${anno}")
+                  import leo.modules.encoding.TypedFOLDecoding
+                  val decoded = TypedFOLDecoding(line.asInstanceOf[leo.datastructures.tptp.Commons.TFFAnnotated])
+                  println(decoded.toString)
+                }
+
+              }
+
               endplay(emptyClause, state)
             } else {
               endplay(null, state)

@@ -21,6 +21,9 @@ trait TptpProver[C <: ClauseProxy] extends HasCapabilities { self =>
   /** The path for the prover. */
   def path : String
 
+  def szsOutputStartDelim: Seq[String] = Seq(TptpProver.SZS_OUTPUT_START_DELIM)
+  def szsOutputEndDelim: Seq[String] = Seq(TptpProver.SZS_OUTPUT_END_DELIM)
+
   /**
     * Calls the external prover on a set of formulas assumed to be correct.
     *
@@ -108,7 +111,12 @@ trait TptpProver[C <: ClauseProxy] extends HasCapabilities { self =>
     new TPTPResultFuture(extProcess, originalProblem, timeout)
   }
 
-  protected[TptpProver] class TptpResultImpl(originalProblem : Set[C], passedSzsStatus : StatusSZS, passedExitValue : Int, passedOutput : Iterable[String], passedError : Iterable[String]) extends TptpResult[C] {
+  protected[TptpProver] class TptpResultImpl(originalProblem : Set[C],
+                                             passedSzsStatus : StatusSZS,
+                                             passedSzsOutput: Option[String],
+                                             passedExitValue : Int,
+                                             passedOutput : Iterable[String],
+                                             passedError : Iterable[String]) extends TptpResult[C] {
     /**
       * The name of the original prover called..
       * @return prover name
@@ -136,6 +144,7 @@ trait TptpProver[C <: ClauseProxy] extends HasCapabilities { self =>
       * @return SZSStatus of the problem
       */
     val szsStatus : StatusSZS = passedSzsStatus
+    val szsOutput: Option[String] = passedSzsOutput
 
     /**
       * The exit value of the prover
@@ -220,30 +229,37 @@ trait TptpProver[C <: ClauseProxy] extends HasCapabilities { self =>
       val stdin = scala.io.Source.fromInputStream(process0.getInputStream).getLines().toSeq
       val stderr = scala.io.Source.fromInputStream(process0.getErrorStream).getLines().toSeq
 
+      val errorMsg = stderr.mkString("\n")
+      if (errorMsg != "") leo.Out.warn(s"Error message from $name:\n$errorMsg")
+
+      val szsAnswer = atpAnswerToSZS(stdin.iterator)
+      val szsOutput = atpSZSOutput(stdin.iterator)
+
       if (Configuration.isSet("atpdebug")) {
         val answer = stdin.mkString("\n")
         leo.Out.output("#############################")
         leo.Out.output("name:" + name)
         leo.Out.output("--------------------")
-        leo.Out.output("output:" + answer)
+        leo.Out.output("output:\n" + answer)
+        leo.Out.output("--------------------")
+        leo.Out.output("szs status:\n" + szsAnswer())
+        leo.Out.output("--------------------")
+        leo.Out.output("szs output:\n" + szsOutput.getOrElse("<nothing>"))
         leo.Out.output("--------------------")
         if (answer.contains("error")) {
-           leo.Out.output("+-+-+-+-+-+-+-+-+-+-+-+-+ Melon Melon!")
-           originalProblem.foreach(c => leo.Out.output(c.pretty))
-           leo.Out.output("+-+-+-+-+-+-+-+-+-+-+-+-+ Melon Melon!")
-           throw new Error
+          leo.Out.output("+-+-+-+-+-+-+-+-+-+-+-+-+ Melon Melon!")
+          originalProblem.foreach(c => leo.Out.output(c.pretty))
+          leo.Out.output("+-+-+-+-+-+-+-+-+-+-+-+-+ Melon Melon!")
+          throw new Error
         }
       }
-      val errorMsg = stderr.mkString("\n")
-      if (errorMsg != "") leo.Out.warn(s"Error message from $name:\n$errorMsg")
 
-      val szsAnswer = atpAnswerToSZS(stdin.iterator)
-      result = new TptpResultImpl(originalProblem, szsAnswer, exitCode,
+      result = new TptpResultImpl(originalProblem, szsAnswer, szsOutput, exitCode,
         stdoutAnswer.lines.toIterable, stderrAnswer.lines.toIterable)
     } catch {
       case e : Exception =>
         val error = if(Configuration.isSet("atpdebug")) Seq(e.toString) else Seq()
-        result =  new TptpResultImpl(originalProblem, SZS_Error, -1,
+        result =  new TptpResultImpl(originalProblem, SZS_Error, null, -1,
         Seq(), error)
     }
 
@@ -258,7 +274,28 @@ trait TptpProver[C <: ClauseProxy] extends HasCapabilities { self =>
       }
       if (szsStatus == null) SZS_GaveUp else szsStatus
     }
+    private def atpSZSOutput(stdin: Iterator[String]): Option[String] = {
+      val sb: StringBuilder = new StringBuilder
+      var started: Boolean = false
+      var finished: Boolean = false
+      while (stdin.hasNext && !finished) {
+        val line = stdin.next().trim
+        if (szsOutputStartDelim.exists(line.startsWith)) started = true
+        else if (szsOutputEndDelim.exists(line.startsWith)) finished = true
+        else {
+          if (started) {
+            sb.append(line)
+            sb.append('\n')
+          }
+        }
+      }
+      if (sb.isEmpty) None else Some(sb.toString())
+    }
   }
+}
+object TptpProver {
+  final val SZS_OUTPUT_START_DELIM = "% SZS output start"
+  final val SZS_OUTPUT_END_DELIM = "% SZS output end"
 }
 
 
@@ -294,6 +331,10 @@ trait TptpResult[C <: ClauseProxy] {
     * @return SZSStatus of the problem
     */
   def szsStatus : StatusSZS
+  /** The prover output as defined by the SZS ontology, if existent.
+    * Note that this is the substring of [[output]] between "% SZS output start"
+    * and "% SZS output end". */
+  def szsOutput: Option[String]
 
   /**
     * The exit value of the prover

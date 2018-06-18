@@ -260,6 +260,14 @@ object CVC4 {
 class EProver(val path : String) extends TptpProver[AnnotatedClause] {
   final val name: String = "e"
   final val capabilities: Capabilities.Info = Capabilities(Capabilities.TFF -> Seq())
+  final override val szsOutputStartDelim: Seq[String] = {
+    super.szsOutputStartDelim :+
+      "# SZS output start"
+  }
+  final override val szsOutputEndDelim: Seq[String] = {
+    super.szsOutputEndDelim :+
+      "# SZS output end"
+  }
 
   protected[external] def constructCall(args: Seq[String], timeout: Int,
                                         problemFileName: String): Seq[String] = {
@@ -267,7 +275,7 @@ class EProver(val path : String) extends TptpProver[AnnotatedClause] {
       "--delete-bad-limit=2000000000",
       "--definitional-cnf=24",
       "-s",
-      "--proof-object=0",
+      "--proof-object",
       "--auto-schedule",
       "--split-clauses=4",
       "--split-reuse-defs",

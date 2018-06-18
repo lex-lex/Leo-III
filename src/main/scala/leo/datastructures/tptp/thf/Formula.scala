@@ -37,7 +37,16 @@ case class Typed(formula: LogicFormula, typ: LogicFormula) extends LogicFormula 
 }
 
 case class Binary(left: LogicFormula, connective: BinaryConnective, right: LogicFormula) extends LogicFormula {
-  override def toString = "(" + left.toString + ") " + connective.toString + " (" + right.toString + ")"
+  override def toString: String = left match {
+    case Var(_) | Function(_, Seq()) => right match {
+      case Var(_) | Function(_, Seq()) => s"${left.toString} ${connective.toString} ${right.toString}"
+      case _ => s"${left.toString} ${connective.toString} (${right.toString})"
+    }
+    case _ => right match {
+      case Var(_) | Function(_, Seq()) => s"(${left.toString}) ${connective.toString} ${right.toString}"
+      case _ => s"(${left.toString}) ${connective.toString} (${right.toString})"
+    }
+  }
 
   override val function_symbols: Set[String] = left.function_symbols union right.function_symbols
 }
@@ -47,7 +56,7 @@ case class Unary(connective: UnaryConnective, formula: LogicFormula) extends Log
   override val function_symbols: Set[String] = formula.function_symbols
 }
 case class Quantified(quantifier: Quantifier, varList: Seq[(CommonVariable,Option[LogicFormula])], matrix: LogicFormula) extends LogicFormula {
-  override def toString = quantifier.toString + " [" + varList.mkString(",") + "] : (" + matrix.toString + ")"
+  override def toString: String = s"${quantifier.toString} [${varList.map(v => if (v._2.isEmpty) v._1 else v._1 + ": " + v._2.get.toString).mkString(",")}] : ( ${matrix.toString} )"
 
   // TODO are we considering types as well? (Remove `union decl` if we do not want to check types)
   override val function_symbols: Set[String] = {
@@ -68,7 +77,7 @@ case class Connective(c: Either[BinaryConnective, UnaryConnective]) extends Logi
   override def function_symbols: Set[String] = Set()
 }
 case class Function(func: String, args: Seq[LogicFormula]) extends LogicFormula {
-  override def toString = s"$func(${args.map(_.toString).mkString(",")})"
+  override def toString: String = if (args.isEmpty) func else s"$func(${args.map(_.toString).mkString(",")})"
   override val function_symbols: Set[String] = args.flatMap(_.function_symbols).toSet + func
 }
 case class Var(name: String) extends LogicFormula {
