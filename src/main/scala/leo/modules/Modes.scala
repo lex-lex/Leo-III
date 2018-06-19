@@ -1,7 +1,8 @@
 package leo.modules
 
+import leo.datastructures.ClauseAnnotation.FromFile
 import leo.datastructures.tptp.Commons.AnnotatedFormula
-import leo.datastructures.{Role_Definition, Role_Type, Signature}
+import leo.datastructures._
 import leo.{Configuration, Out}
 import leo.modules.output._
 import leo.modules.parsers.Input
@@ -12,6 +13,25 @@ object Modes {
     implicit val sig: Signature = Signature.freshWithHOL()
     val sb: StringBuilder = new StringBuilder
     val erg = Input.processProblem(parsedProblem)
+    sb.append(ToTPTP(sig))
+    sb.append(ToTPTP.printDefinitions(sig))
+    erg.foreach {case (id, t, role) =>
+      if (role != Role_Definition && role != Role_Type) {
+        sb.append(ToTPTP.toTPTP(id, termToClause(t), role)(sig))
+        sb.append("\n")
+      }
+    }
+    Out.output(SZSResult(SZS_Success, Configuration.PROBLEMFILE, s"Translation finished."))
+    Out.output(SZSOutput(SZS_ListOfTHF, Configuration.PROBLEMFILE, sb.toString()))
+  }
+
+  final def toTFF(parsedProblem: scala.Seq[AnnotatedFormula]): Unit = {
+    implicit val sig: Signature = Signature.freshWithHOL()
+    val sb: StringBuilder = new StringBuilder
+    val erg = Input.processProblem(parsedProblem)
+    val clauses = erg.map(e => AnnotatedClause(termToClause(e._2), e._3, FromFile(Configuration.PROBLEMFILE, e._1), ClauseAnnotation.PropNoProp))
+
+    
     sb.append(ToTPTP(sig))
     sb.append(ToTPTP.printDefinitions(sig))
     erg.foreach {case (id, t, role) =>

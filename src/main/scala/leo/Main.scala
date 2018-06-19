@@ -81,6 +81,8 @@ object Main {
           Modes.typeCheck(problem)
         } else if (Configuration.isSet("toTHF")) {
           Modes.toTHF(problem)
+        } else if (Configuration.isSet("toTFF")) {
+          Modes.toTFF(problem)
         } else {
           Modes.seqLoop(beginTime, Configuration.TIMEOUT, problem)
         }
